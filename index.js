@@ -23,7 +23,7 @@ if (!createPath) {
     console.log(chalk.red('项目名不能包含空格'));
     return;
 }
-createPath = process.env.PWD + '/' + createPath;
+let fullPath = process.env.PWD + '/' + createPath;
 console.log('createPath=', createPath);
 
 // 复制文件
@@ -44,8 +44,7 @@ function mkdir(path, fn) {
     })
 }
 
-var PATH = '.';
-var copy = function (src, dst) {
+let copy = function (src, dst) {
     // console.log('copy', src, dst);
     let paths = fs.readdirSync(src); //同步读取当前目录(只能读取绝对路径，相对路径无法获取)
     // console.log(paths);
@@ -63,8 +62,8 @@ var copy = function (src, dst) {
             }
         });
     });
-}
-var checkDirectory = function (src, dst, callback) {
+};
+let checkDirectory = function (src, dst, callback) {
     fs.access(dst, fs.constants.F_OK, (err) => {
         if (err) {
             fs.mkdirSync(dst);
@@ -75,6 +74,10 @@ var checkDirectory = function (src, dst, callback) {
     });
 };
 
-mkdir(createPath, function () {
-        checkDirectory(path.join(__dirname,'template'), createPath, copy);
-})
+mkdir(fullPath, function () {
+        checkDirectory(path.join(__dirname,'template'), fullPath, copy);
+});
+
+console.log(chalk.green('👉初始化成功，使用如下命令开始你的项目\n'));
+console.log(chalk.gray('$ ') + chalk.cyan('cd ' + createPath));
+console.log(chalk.gray('$ ') + chalk.cyan('npm run serve'));
