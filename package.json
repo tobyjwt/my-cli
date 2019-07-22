@@ -16,6 +16,8 @@
     "commander": "^2.20.0",
     "demo": "file:dist",
     "execa": "^2.0.3",
+    "fs-extra": "^8.1.0",
+    "inquirer": "^6.5.0",
     "minimist": "^1.2.0",
     "semver": "^6.2.0"
   },

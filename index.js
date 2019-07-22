@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-const fs = require('fs');
+// const fs = require('fs');
+const fs = require('fs-extra')
 const path = require('path');
 const program = require('commander');
 const chalk = require('chalk');
@@ -8,58 +9,83 @@ const requiredVersion = require('./package.json').engines.node;
 const cp = require('child_process');
 const execa = require('execa');
 const minimist = require('minimist');
+const inquirer = require('inquirer');
 
 // console.log(process);
 // console.log(process.env.PWD);
 // console.log(process.argv);
-
-function checkNodeVersion (wanted, id) {
-    if (!semver.satisfies(process.version, wanted)) {
-        console.log(chalk.red(
-            'You are using Node ' + process.version + ', but this version of ' + id +
-            ' requires Node ' + wanted + '.\nPlease upgrade your Node version.'
-        ));
-        process.exit(1);
-    }
-}
-
-checkNodeVersion(requiredVersion, 'vue-cli');
-
-if (semver.satisfies(process.version, '10.x')) {
-    console.log(chalk.red(
-        `You are using Node ${process.version}.\n` +
-        `Node.js 9.x has already reached end-of-life and will not be supported in future major releases.\n` +
-        `It's strongly recommended to use an active LTS version instead.`
-    ))
-}
-
 let createPath = '';
-program
-    .command('create <app-name>')
-    .description('create a new project')
-    .action((name, cmd) => {
-        // console.log(name, cmd);
-        createPath = name;
-        // const options = cleanArgs(cmd);
-        // console.log(options);
+main();
 
-        if (minimist(process.argv.slice(3))._.length > 1) {
-            console.log(chalk.yellow('\n Info: You provided more than one argument. The first one will be used as the app\'s name, the rest are ignored.'))
-        }
-    });
-    // 获得了参数，可以在这里做响应的业务处理
+async function main() {
+    checkNodeVersion(requiredVersion, 'vue-cli');
+
+
+    await program
+        .command('create <app-name>')
+        .description('create a new project')
+        .action(async (name, cmd) => {
+            // console.log(name, cmd);
+            createPath = name;
+            let fullPath = process.env.PWD + '/' + createPath;
+            // const options = cleanArgs(cmd);
+            // console.log(options);
+            if (minimist(process.argv.slice(3))._.length > 1) {
+                console.log(chalk.yellow('\n Info: You provided more than one argument. The first one will be used as the app\'s name, the rest are ignored.'))
+            }
+            console.log('fs.existsSync(fullPath)', fs.existsSync(fullPath), fullPath);
+            if (fs.existsSync(fullPath)) {
+                const { action } = await inquirer.prompt([
+                    {
+                        name: 'action',
+                        type: 'list',
+                        message: `Target directory ${chalk.cyan(fullPath)} already exists. Pick an action:`,
+                        choices: [
+                            {name: 'Overwrite', value: 'overwrite'},
+                            {name: 'Cancel', value: false}
+                        ]
+                    }
+                ]);
+                if (action === 'overwrite') {
+                    try {
+                        console.log(`\nRemoving ${chalk.cyan(fullPath)}...`);
+                        await fs.remove(fullPath);
+                    } catch (e) {
+                        console.log(chalk.red(`error: failed to remove ${fullPath}, please make sure <app-name> is not existent.`));
+                        process.exit(1);
+                    }
+                } else {
+                    process.exit(1);
+                }
+            }
+            if (semver.satisfies(process.version, '9.x')) {
+                console.log(chalk.red(
+                    `You are using Node ${process.version}.\n` +
+                    `Node.js 9.x has already reached end-of-life and will not be supported in future major releases.\n` +
+                    `It's strongly recommended to use an active LTS version instead.`
+                ));
+            }
+            // if (!createPath) {
+            //     console.log(chalk.red('未检测到项目名，示例 test-cli init project-name'));
+            //     process.exit(1)
+            // } else if (/ /.test(createPath)) {
+            //     console.log(chalk.red('项目名不能包含空格'));
+            //     process.exit(1)
+            // }
+            console.log('createPath=', createPath);
+
+            mkdir(fullPath, function () {
+                checkDirectory(path.join(__dirname, 'template'), fullPath, copy);
+            });
+
+// cp.exec();
+
+            afterCopy();
+        });
 // });
-program.parse(process.argv);
-console.log(createPath);
-if (!createPath) {
-    console.log(chalk.red('未检测到项目名，示例 test-cli init project-name'));
-    process.exit(1)
-} else if (/ /.test(createPath)) {
-    console.log(chalk.red('项目名不能包含空格'));
-    process.exit(1)
+    program.parse(process.argv);
+    console.log(createPath);
 }
-let fullPath = process.env.PWD + '/' + createPath;
-console.log('createPath=', createPath);
 
 // 复制文件
 function copyTemplate(from, to) {
@@ -109,13 +135,6 @@ let checkDirectory = function (src, dst, callback) {
     });
 };
 
-mkdir(fullPath, function () {
-    checkDirectory(path.join(__dirname,'template'), fullPath, copy);
-});
-
-// cp.exec();
-
-afterCopy();
 
 async function afterCopy() {
     // await run('echo
@@ -131,13 +150,13 @@ async function afterCopy() {
     });
 }
 
-function camelize (str) {
+function camelize(str) {
     return str.replace(/-(\w)/g, (_, c) => c ? c.toUpperCase() : '')
 }
 
 // commander passes the Command object itself as options,
 // extract only actual options into a fresh object.
-function cleanArgs (cmd) {
+function cleanArgs(cmd) {
     const args = {};
     cmd.options.forEach(o => {
         const key = camelize(o.long.replace(/^--/, ''))
@@ -150,8 +169,21 @@ function cleanArgs (cmd) {
     return args;
 }
 
-function run (command, args) {
+function run(command, args) {
     console.log(this.context);
-    if (!args) { [command, ...args] = command.split(/\s+/) }
-    return execa(command, args, { cwd: this.context })
+    if (!args) {
+        [command, ...args] = command.split(/\s+/)
+    }
+    return execa(command, args, {cwd: this.context})
+}
+
+// check version
+function checkNodeVersion(wanted, id) {
+    if (!semver.satisfies(process.version, wanted)) {
+        console.log(chalk.red(
+            'You are using Node ' + process.version + ', but this version of ' + id +
+            ' requires Node ' + wanted + '.\nPlease upgrade your Node version.'
+        ));
+        process.exit(1);
+    }
 }
